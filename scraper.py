@@ -6,32 +6,35 @@
 import urllib
 import urllib.request
 from pathlib import Path
-from os import mkdir
 from tqdm import tqdm
+import argparse
+import json
 
-username = "hikaru" #change 
-baseUrl = "https://api.chess.com/pub/player/" + username + "/games/"
-archivesUrl = baseUrl + "archives"
+parser = argparse.ArgumentParser(description="Scrape all archived player games from chess.com")
 
-#read the archives url and store in a list
-f = urllib.request.urlopen(archivesUrl)
-archives = f.read().decode("utf-8")
-archives = archives.replace("{\"archives\":[\"", "\",\"")
-archivesList = archives.split("\",\"" + baseUrl)
-archivesList[len(archivesList)-1] = archivesList[len(archivesList)-1].rstrip("\"]}")
+parser.add_argument("-b", "--base", type=Path, default="./data", help="base of the path to download games to")
+parser.add_argument("username", type=lambda x: str(x).lower(), help="user to download archive of")
 
-if not Path(f"./{username}").exists():
-    mkdir(f"./{username}")
+args = parser.parse_args()
+
+base_url = "https://api.chess.com/pub/player/" + args.username + "/games/"
+archives_url = base_url + "archives"
+
+# read the archives url and store in a list
+f = urllib.request.urlopen(archives_url)
+result = json.loads(f.read().decode("utf-8"))
+archives = result["archives"]
+
+if not (args.base / args.username).exists():
+    Path(args.base / args.username).mkdir(parents=True)
 
 #download all the archives
-for i in tqdm(range(len(archivesList)-1)):
-    url = baseUrl + archivesList[i+1] + "/pgn"
-    filename = archivesList[i+1].replace("/", "-")
+for archive in tqdm(archives):
+    url = archive + "/pgn"
+    filename = args.base / args.username / ("_".join(archive.split("/")[-2:]) + ".pgn")
 
-    if Path(f"./{username}/{filename}.pgn").exists():
-        continue
+    if filename.exists(): continue
     
-    urllib.request.urlretrieve(url, f"./{username}/{filename}.pgn") #change
-    print(filename + ".pgn has been downloaded.")
+    urllib.request.urlretrieve(url, filename)
 
 print ("All files have been downloaded.")
